@@ -31,7 +31,6 @@ def main():
     parser.add_argument('--configs', type=str, default='UTUTUT', help='逗号分隔的配置')
     parser.add_argument('--d_model', type=int, default=256)
     parser.add_argument('--n_heads', type=int, default=8)
-    parser.add_argument('--n_layers', type=int, default=6)
     parser.add_argument('--seq_len', type=int, default=256)
     parser.add_argument('--batch_size', type=int, default=4)
     args = parser.parse_args()
@@ -50,7 +49,7 @@ def main():
             continue
         model = CustomAlternatingGPT(
             vocab_size=len(tokenizer), d_model=args.d_model,
-            n_heads=args.n_heads, n_layers=args.n_layers,
+            n_heads=args.n_heads,
             config_str=config_str, max_seq_len=args.seq_len,
         ).to(device)
         model.load_state_dict(torch.load(ckpt, map_location=device)['model_state_dict'])

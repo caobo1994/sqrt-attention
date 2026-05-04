@@ -34,8 +34,13 @@ RESET = '\033[0m'
 def parse_configs(args):
     """解析配置列表。"""
     if '--all-alternates' in args:
-        # 所有 64 种 6 层 U/T 组合
-        return [''.join(p) for p in itertools.product('UT', repeat=6)]
+        # 从第一个 --epochs 或默认 6 层推断
+        n = 6
+        for i, a in enumerate(args):
+            if a == '--n' and i + 1 < len(args):
+                n = int(args[i + 1])
+                break
+        return [''.join(p) for p in itertools.product('UT', repeat=n)]
     for i, a in enumerate(args):
         if a == '--configs' and i + 1 < len(args):
             return args[i + 1].split(',')
@@ -94,7 +99,7 @@ def print_summary():
         return
 
     log = json.loads(log_path.read_text())
-    n_layers = max(len(k) for k in log) if log else 6
+    n_layers = max(len(k) for k in log) if log else 0
 
     print(f"\n{BOLD}{'='*70}{RESET}")
     print(f"{BOLD}  Custom Alternating — Results Summary{RESET}")

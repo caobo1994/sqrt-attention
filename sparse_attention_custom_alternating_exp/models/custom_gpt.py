@@ -101,18 +101,16 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 
-def parse_config_string(config_str, n_layers=6):
+def parse_config_string(config_str):
     """
     将配置字符串解析为每层的采样策略。
+    层数由配置字符串长度自动推断。
     
     例如:
       "UTUTUT" → ['uniform','topk_norm','uniform','topk_norm','uniform','topk_norm']
       "UUUTTT" → ['uniform','uniform','uniform','topk_norm','topk_norm','topk_norm']
-      "TTTTTT" → ['topk_norm'] * 6
     """
     config_str = config_str.upper().strip()
-    if len(config_str) != n_layers:
-        raise ValueError(f"Config string must have exactly {n_layers} chars, got {len(config_str)}: '{config_str}'")
     mapping = {'U': 'uniform', 'T': 'topk_norm'}
     result = []
     for c in config_str:
@@ -125,12 +123,13 @@ def parse_config_string(config_str, n_layers=6):
 class CustomAlternatingGPT(nn.Module):
     """GPT 解码器，接收 U/T 字符串配置每层的采样策略。"""
 
-    def __init__(self, vocab_size, d_model=256, n_heads=8, n_layers=6,
+    def __init__(self, vocab_size, d_model=256, n_heads=8,
                  growth_factor=2.0, config_str='UTUTUT', max_seq_len=1024):
         super().__init__()
         self.config_str = config_str.upper()
+        layer_samplings = parse_config_string(config_str)
+        n_layers = len(layer_samplings)
         self.n_layers = n_layers
-        layer_samplings = parse_config_string(config_str, n_layers)
 
         self.token_emb = nn.Embedding(vocab_size, d_model)
         self.pos_emb = nn.Embedding(max_seq_len, d_model)

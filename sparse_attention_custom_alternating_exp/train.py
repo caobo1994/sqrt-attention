@@ -120,7 +120,7 @@ def main():
     parser.add_argument('--seq_len', type=int, default=256)
     parser.add_argument('--d_model', type=int, default=256)
     parser.add_argument('--n_heads', type=int, default=8)
-    parser.add_argument('--n_layers', type=int, default=6)
+    # n_layers inferred from config string length
     parser.add_argument('--lr', type=float, default=3e-4)
     parser.add_argument('--warmup_steps', type=int, default=500)
     parser.add_argument('--resume', action='store_true', help='从已有检查点恢复')
@@ -161,7 +161,7 @@ def main():
         vocab_size=len(tokenizer),
         d_model=args.d_model,
         n_heads=args.n_heads,
-        n_layers=args.n_layers,
+        # n_layers inferred from config_str
         config_str=config_str,
         max_seq_len=args.seq_len,
     ).to(device)
