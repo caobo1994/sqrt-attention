@@ -132,9 +132,9 @@ def main():
         args.epochs = 2
 
     # 解析配置
-    layer_samplings = parse_config_string(config_str, args.n_layers)
+    layer_samplings = parse_config_string(config_str)
     readable = ''.join('U' if s == 'uniform' else 'T' for s in layer_samplings)
-    print(f"Config: {config_str} → {readable} ({args.n_layers} layers)")
+    print(f"Config: {config_str} → {readable} ({len(layer_samplings)} layers)")
     print(f"Layers: ['{' | '.join(readable)}']")
 
     # 检查已有检查点
