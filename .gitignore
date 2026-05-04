@@ -1,0 +1,33 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Checkpoints & logs
+*.pt
+*.log
+
+# Benchmark data
+benchmark_data.json
+long_benchmark.json
+baseline_comparison.json
+full_comparison.json
+full_comparison_fixed.json
+
+# Generated images
+benchmark.png
+comparison.png
+comparison_wt103.png
+
+# MacOS
+.DS_Store
+pbpaste
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/

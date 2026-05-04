@@ -1,0 +1,4 @@
+torch>=2.3.0
+transformers>=4.30.0
+numpy>=1.21.0
+matplotlib  # optional, for visualization
