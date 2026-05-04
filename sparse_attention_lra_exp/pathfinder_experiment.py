@@ -140,10 +140,11 @@ class TransformerBlock(nn.Module):
 
 
 class PathfinderModel(nn.Module):
-    """Pathfinder-X 分类模型：√Block Transformer + 标记点位置提取 + 分类头
+    """Pathfinder-X 分类模型：√Block Transformer + 可学习标记检测 + 分类头
 
-    关键改进：用标记点的像素值 (0.75, 0.5) 在序列中定位两个点，
-    提取对应位置的隐状态做分类，而不是均值池化。
+    不是用精确位置，而是让模型通过两个可学习的"检测器"注意力头，
+    自动在序列中定位两个不同标记点 (像素值 0.75 和 0.5)，
+    提取加权特征做分类。防止过拟合。
     """
 
     def __init__(self, d_model=128, n_heads=4, n_layers=2,
@@ -153,22 +154,28 @@ class PathfinderModel(nn.Module):
         self.seq_len = seq_len
         self.pixel_emb = nn.Linear(1, d_model)
         self.pos_emb = nn.Embedding(seq_len, d_model)
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(0.2)
         self.blocks = nn.ModuleList([
-            TransformerBlock(d_model, n_heads, growth_factor, sampling, 0.1)
+            TransformerBlock(d_model, n_heads, growth_factor, sampling, 0.2)
             for _ in range(n_layers)
         ])
         self.ln_f = nn.LayerNorm(d_model)
-        # 分类头：输入是 A 和 B 标记点的拼接隐状态
+
+        # 两个可学习的标记检测器：自动找到 A/B 标记点
+        # 每个检测器是一个线性层，对每个位置的隐状态打分
+        self.marker_detector_a = nn.Linear(d_model, 1)
+        self.marker_detector_b = nn.Linear(d_model, 1)
+
+        # 分类头
         self.classifier = nn.Sequential(
             nn.Linear(d_model * 2, d_model), nn.GELU(),
-            nn.Dropout(0.1), nn.Linear(d_model, num_classes),
+            nn.Dropout(0.2), nn.Linear(d_model, num_classes),
         )
 
     def forward(self, x, pos1=None, pos2=None):
         """
         x: (B, T) 像素值
-        pos1, pos2: (B,) 两个标记点的序列位置
+        pos1, pos2: 忽略（兼容旧接口）
         """
         B, T = x.shape[0], x.shape[1]
         if x.dim() == 2:
@@ -179,15 +186,16 @@ class PathfinderModel(nn.Module):
             h = block(h)
         h = self.ln_f(h)
 
-        if pos1 is not None and pos2 is not None:
-            # 提取标记点位置的隐状态
-            idx = torch.arange(B, device=x.device)
-            h_a = h[idx, pos1, :]  # (B, d_model)
-            h_b = h[idx, pos2, :]
-            pooled = torch.cat([h_a, h_b], dim=-1)  # (B, 2*d_model)
-        else:
-            # 回退到均值池化
-            pooled = torch.cat([h.mean(dim=1), h.mean(dim=1)], dim=-1)
+        # 可学习标记检测：对每个位置打分 → softmax → 加权求和
+        score_a = self.marker_detector_a(h).squeeze(-1)  # (B, T)
+        score_b = self.marker_detector_b(h).squeeze(-1)
+        attn_a = F.softmax(score_a, dim=-1).unsqueeze(-1)  # (B, T, 1)
+        attn_b = F.softmax(score_b, dim=-1).unsqueeze(-1)
+
+        h_a = (h * attn_a).sum(dim=1)  # (B, d)
+        h_b = (h * attn_b).sum(dim=1)
+        pooled = torch.cat([h_a, h_b], dim=-1)
+
         return self.classifier(pooled)
 
 
@@ -304,7 +312,7 @@ def train_epoch(model, loader, opt, sched, device):
             p1, p2 = None, None
         x, y = x.to(device), y.to(device)
         opt.zero_grad()
-        logits = model(x, pos1=p1, pos2=p2)
+        logits = model(x)
         loss = F.cross_entropy(logits, y)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -333,7 +341,7 @@ def evaluate(model, loader, device, profile=False):
         if profile and device.type == "mps":
             torch.mps.synchronize()
             t0 = time.perf_counter()
-        logits = model(x, pos1=p1, pos2=p2)
+        logits = model(x)
         if profile and device.type == "mps":
             torch.mps.synchronize()
             times.append((time.perf_counter() - t0) * 1000)
